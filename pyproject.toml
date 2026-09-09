@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ensemblemtd"
+version = "1.0.0"
+description = "Ensemble RMSD-driven metadynamics for electrolyte reduction pathway discovery"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Adil Aboobacker", email = "a.aboobacker@fz-juelich.de" }]
+keywords = ["metadynamics", "xtb", "reaction network", "electrolyte", "SEI"]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = ["reacnetgenerator"]
+
+[project.optional-dependencies]
+plots = ["matplotlib", "numpy"]
+dev = ["pytest", "pytest-cov"]
+
+[project.scripts]
+ensemble-mtd-aggregate = "ensemblemtd.cli:main"
+ensemble-mtd-convergence = "ensemblemtd.convergence:main"
+
+[project.urls]
+Repository = "https://github.com/adilpsn/EnsembleMTD"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "unit: exercises one module in isolation",
+  "integration: runs the pipeline end to end against a real ensemble",
+]
+
+[tool.coverage.run]
+source = ["ensemblemtd"]

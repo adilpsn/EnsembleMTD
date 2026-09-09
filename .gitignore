@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Aggregation output
+rcng*/
+aggregate_reacnet_*
+convergence.csv
+convergence.pdf
+
+# Reactor output
+*.trj
+*.xyz
+!tests/data/*.trj
+rcontrol
+moldy*
+xtbrestart
+xtbtopo.mol
+mdrestart
+wbo
+charges
+coord*
+scoord*
+xtbmdok
+mtd_run*.out
+md_relax_run*.out
+relaxed_run*.xyz
+traj.smi
+
+# SLURM
+slurm-*.out
+*.err
+
+# macOS
+.DS_Store

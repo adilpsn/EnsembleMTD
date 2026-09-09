@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+title: EnsembleMTD
+message: >-
+  If you use this software, please cite both the software itself and the
+  manuscript it accompanies.
+type: software
+authors:
+  - given-names: Adil
+    family-names: Aboobacker
+    email: a.aboobacker@fz-juelich.de
+    affiliation: >-
+      Helmholtz-Institute Münster (IMD-4), Forschungszentrum Jülich GmbH /
+      University of Münster
+  - given-names: Andreas
+    family-names: Heuer
+    affiliation: >-
+      Helmholtz-Institute Münster (IMD-4), Forschungszentrum Jülich GmbH /
+      University of Münster
+  - given-names: Diddo
+    family-names: Diddens
+    affiliation: >-
+      Helmholtz-Institute Münster (IMD-4), Forschungszentrum Jülich GmbH /
+      University of Münster
+repository-code: https://github.com/adilpsn/EnsembleMTD
+license: MIT
+version: 1.0.0
+keywords:
+  - metadynamics
+  - RMSD-driven metadynamics
+  - GFN2-xTB
+  - reaction network
+  - electrolyte reduction
+  - solid-electrolyte interphase
+preferred-citation:
+  type: article
+  title: >-
+    Ensemble RMSD-Driven Metadynamics for Electrolyte-Reduction Pathway
+    Discovery
+  authors:
+    - given-names: Adil
+      family-names: Aboobacker
+    - given-names: Andreas
+      family-names: Heuer
+    - given-names: Diddo
+      family-names: Diddens
+  notes: Manuscript in preparation.

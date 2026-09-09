@@ -50,19 +50,43 @@ commands.
 
 ## Install
 
-The reactor stage needs [`crest`](https://crest-lab.github.io/crest-docs/),
-[`xtb`](https://xtb-docs.readthedocs.io/) (6.7.1 was used here),
-[Packmol](https://m3g.github.io/packmol/) and
-[Open Babel](https://openbabel.org/) on `PATH`, plus GNU `sed`/`awk`/`bc`.
-The analysis stage needs Python 3.9+, Open Babel, and
-[ReacNetGenerator](https://github.com/tongzhugroup/reacnetgenerator) (1.6.16).
-Graphviz is optional: without `dot` you still get the `.dot` file to render
-elsewhere.
+The package itself has no Python dependencies, so this works anywhere:
+
+```bash
+pip install git+https://github.com/adilpsn/EnsembleMTD.git
+```
+
+What it *calls* is another matter. Everything below is an external program the
+package runs as a subprocess; it checks for them up front and tells you which
+one is missing rather than failing halfway through an ensemble.
+
+| Needed by | Program | Notes |
+|---|---|---|
+| both stages | [Open Babel](https://openbabel.org/) | `conda install -c conda-forge openbabel`, or your package manager. Not reliably pip-installable |
+| reactor | [`crest`](https://crest-lab.github.io/crest-docs/), [`xtb`](https://xtb-docs.readthedocs.io/) | 3.0.2 and 6.7.1 here |
+| reactor | [Packmol](https://m3g.github.io/packmol/) | plus GNU `sed`/`awk`/`bc` |
+| analysis | [ReacNetGenerator](https://github.com/tongzhugroup/reacnetgenerator) | 1.6.16 here. `pip install "ensemblemtd[reacnet]"` if pip suits you |
+| optional | Graphviz | only to rasterise the network; without `dot` you still get the `.dot` |
+| optional | numpy, matplotlib | only for `ensemble-mtd-convergence`: `pip install "ensemblemtd[plots]"` |
+
+Python 3.9 through 3.13 are tested in CI. To work on the code instead:
 
 ```bash
 git clone https://github.com/adilpsn/EnsembleMTD.git
 cd EnsembleMTD
-pip install -e ".[plots]"       # drop [plots] if you do not need the figure
+pip install -e ".[dev,plots]"
+```
+
+### On a cluster
+
+Nothing in the repository contains scheduler directives or `module` commands.
+Copy `reactor/submit.example.sbatch`, put your partition, account and module
+loads in the two sections marked `SITE`, and submit that:
+
+```bash
+cp reactor/submit.example.sbatch submit.sbatch
+$EDITOR submit.sbatch
+sbatch submit.sbatch
 ```
 
 ## Running an ensemble
@@ -79,9 +103,12 @@ arguments are the geometry, the total charge, `k/N`, `alpha`, and the confining
 density:
 
 ```bash
-sbatch reactor/setup_reactor.sh liec2.xyz 0 0.5 0.6 5 \
+./reactor/setup_reactor.sh liec2.xyz 0 0.5 0.6 5 \
     --time 30 --mddump 100 --nrun 20 --walltemp 1000.0 --nm liec2
 ```
+
+That is a long job — hours to days for twenty 30 ps trajectories — so on a
+cluster put it in the wrapper described above rather than running it directly.
 
 That leaves `liec2k0.5_a0.6run1.trj` … `run20.trj` in the working directory.
 `0.5 / 0.6 / 5` are the production settings from the paper; the reasoning
@@ -169,7 +196,7 @@ species labels at all.
 smoke test, which needs `crest` and `xtb` and so wants a compute node:
 
 ```bash
-sbatch reactor/smoke_test.sh        # or: bash reactor/smoke_test.sh
+bash reactor/smoke_test.sh
 ```
 
 It builds a Li + EC cluster, checks the generated `rcontrol` (including that

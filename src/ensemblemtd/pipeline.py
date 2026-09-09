@@ -52,6 +52,27 @@ EXIT_NO_SUCCESSFUL_RUNS = 3
 
 MISSING_SPECIES_PREVIEW = 8
 
+# Where to point someone whose environment is not set up yet.
+TOOL_HINTS = {
+    "reacnetgenerator": "pip install reacnetgenerator  (or: pip install 'ensemblemtd[reacnet]')",
+    "obabel": "conda install -c conda-forge openbabel  (or: apt install openbabel)",
+}
+
+
+def missing_tools(settings: Settings) -> List[Tuple[str, str]]:
+    """External programs the run needs that are not on PATH.
+
+    Checked before any trajectory is read.  Without this, a missing binary
+    surfaces as one opaque OSError per run and an output directory full of
+    empty tables, with the real cause buried in the failures file.
+    """
+    missing = []
+    for binary in (settings.reacnet_bin, settings.obabel_bin):
+        if shutil.which(binary) is None:
+            hint = TOOL_HINTS.get(os.path.basename(binary), "")
+            missing.append((binary, hint))
+    return missing
+
 
 def _excluded_run_record(
     run_name: str, frames: int, atoms_in: int, atoms_out: int, frame: int
@@ -314,6 +335,14 @@ def run_full_pipeline(settings: Settings) -> int:
         for path in files:
             print(path)
         return EXIT_OK
+
+    absent = missing_tools(settings)
+    if absent:
+        for binary, hint in absent:
+            print(f"Required program not found on PATH: {binary}", file=sys.stderr)
+            if hint:
+                print(f"  {hint}", file=sys.stderr)
+        return EXIT_BAD_INPUT
 
     harvest, run_stats, failures, warnings, harvested_template = _harvest_ensemble(
         files, settings, save_noli_dir

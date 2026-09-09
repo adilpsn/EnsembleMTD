@@ -405,3 +405,48 @@ def test_explicit_elements_override_what_was_detected(
     summary = json.loads((outdir / "aggregate_reacnet_summary.json").read_text())
     # repeats dropped, order kept
     assert summary["run_stats"][0]["atom_types_used"] == ["C", "H", "O"]
+
+
+@pytest.mark.unit
+def test_a_missing_external_program_is_reported_before_any_work(tmp_path, ensemble_inputs):
+    outdir = tmp_path / "rcng"
+    result = run_cli(
+        [
+            "--inputs", *ensemble_inputs,
+            "--outdir", str(outdir),
+            "--reacnet-bin", "definitely-not-a-real-binary",
+        ]
+    )
+    assert result.returncode == 2
+    assert "Required program not found on PATH" in result.stderr
+    assert "definitely-not-a-real-binary" in result.stderr
+    # and nothing half-written to confuse the next reader
+    assert list(outdir.iterdir()) == []
+
+
+@pytest.mark.unit
+def test_the_hint_names_how_to_install_reacnetgenerator(tmp_path, ensemble_inputs):
+    result = run_cli(
+        [
+            "--inputs", *ensemble_inputs,
+            "--outdir", str(tmp_path / "rcng"),
+            "--reacnet-bin", "reacnetgenerator-not-installed-here",
+        ]
+    )
+    assert result.returncode == 2
+    # the basename does not match a known tool, so no hint is invented
+    assert "pip install" not in result.stderr
+
+
+@pytest.mark.unit
+def test_a_dry_run_does_not_require_the_external_programs(tmp_path, ensemble_inputs):
+    result = run_cli(
+        [
+            "--inputs", *ensemble_inputs,
+            "--outdir", str(tmp_path / "rcng"),
+            "--reacnet-bin", "definitely-not-a-real-binary",
+            "--dry-run",
+        ]
+    )
+    assert result.returncode == 0
+    assert result.stdout.startswith("Dry run inputs:")

@@ -1,0 +1,77 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    # The unit tests need nothing but Python, so they are the fast gate and the
+    # one that checks the supported version range.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev,plots]"
+      - run: pytest -m unit -q
+
+  integration:
+    # The end-to-end tests need Open Babel for the InChI collapse. They replay
+    # captured ReacNetGenerator output through a stub, so ReacNetGenerator
+    # itself is not installed here. Graphviz is optional for the package but
+    # installed so the SVG path gets exercised too.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Open Babel and Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openbabel graphviz
+          obabel -V
+          dot -V
+      - run: pip install -e ".[dev,plots]"
+      - run: pytest -q --cov=ensemblemtd --cov-report=term-missing
+
+  shell:
+    # The reactor scripts cannot be exercised without crest and xtb, so lint
+    # them instead and check they at least parse.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Parse
+        run: for f in reactor/*.sh; do bash -n "$f"; done
+      - name: Lint
+        run: shellcheck --severity=warning reactor/*.sh
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and check the distribution
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+      - name: Install from the wheel with no extras and check the entry points
+        run: |
+          pip install dist/*.whl
+          ensemble-mtd-aggregate --help > /dev/null
+          ensemble-mtd-convergence --help > /dev/null

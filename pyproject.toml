@@ -5,22 +5,49 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ensemblemtd"
 version = "1.0.0"
-description = "Ensemble RMSD-driven metadynamics for electrolyte reduction pathway discovery"
+description = "Ensemble RMSD-driven metadynamics for electrolyte-reduction pathway discovery"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Adil Aboobacker", email = "a.aboobacker@fz-juelich.de" }]
-keywords = ["metadynamics", "xtb", "reaction network", "electrolyte", "SEI"]
+keywords = [
+  "metadynamics",
+  "molecular dynamics",
+  "reaction network",
+  "xtb",
+  "electrolyte",
+  "solid-electrolyte interphase",
+  "computational chemistry",
+]
 classifiers = [
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
 ]
-dependencies = ["reacnetgenerator"]
+
+# No runtime dependencies. ReacNetGenerator, Open Babel and Graphviz are
+# invoked as external programs, never imported, so they are the user's to
+# install (see the reacnet extra below, or your package manager). Keeping this
+# list empty means `pip install ensemblemtd` succeeds anywhere.
+dependencies = []
 
 [project.optional-dependencies]
-plots = ["matplotlib", "numpy"]
+# The aggregation stage shells out to `reacnetgenerator`; install it here if pip
+# is how you want it. Open Babel is not pip-installable in general -- use conda,
+# apt, or brew.
+reacnet = ["reacnetgenerator"]
+# Only the convergence analysis needs these.
+plots = ["numpy", "matplotlib"]
 dev = ["pytest", "pytest-cov"]
 
 [project.scripts]
@@ -28,7 +55,9 @@ ensemble-mtd-aggregate = "ensemblemtd.cli:main"
 ensemble-mtd-convergence = "ensemblemtd.convergence:main"
 
 [project.urls]
+Homepage = "https://github.com/adilpsn/EnsembleMTD"
 Repository = "https://github.com/adilpsn/EnsembleMTD"
+Issues = "https://github.com/adilpsn/EnsembleMTD/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

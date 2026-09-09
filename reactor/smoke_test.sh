@@ -1,35 +1,21 @@
 #!/bin/bash
 # Exercise the reactor scripts end to end on a Li + EC cluster small enough to
-# finish in under a minute.  This is the shell counterpart to the pytest suite,
+# finish in about a minute.  This is the shell counterpart to the pytest suite,
 # which covers the analysis stage only.
 #
-# Run it on a compute node, not a login node:
-#
-#   sbatch reactor/smoke_test.sh
-#
-# or directly, if crest and xtb are on PATH and you are somewhere you are
-# allowed to burn a couple of CPU minutes:
+# It needs crest and xtb, so run it where you are allowed a couple of CPU
+# minutes -- a compute node or an interactive allocation, not a shared login
+# node:
 #
 #   bash reactor/smoke_test.sh
+#   srun --ntasks=8 --time=00:20:00 bash reactor/smoke_test.sh
 #
-#SBATCH -J emtd_smoke
-#SBATCH --nodes=1
-#SBATCH --ntasks=8
-#SBATCH --cpus-per-task=1
-#SBATCH --time=01:00:00
-#SBATCH --mem=16G
-#SBATCH -o smoke_test.out
-#SBATCH -e smoke_test.err
+# To submit it instead, use submit.example.sbatch as the wrapper.  There are no
+# scheduler directives here, so nothing site-specific to edit in this file.
 
-# Cluster-specific: Packmol needs libgfortran, which a bare batch environment
-# does not always carry.  Adjust or drop for your site.
-if command -v module >/dev/null 2>&1; then
-    module load palma/2023b GCC/13.2.0 OpenMPI/4.1.6 2>/dev/null
-fi
-
-# Locating the sibling scripts is not as simple as dirname "$0": slurmd copies
-# the batch script into its spool directory before running it, so under sbatch
-# "$0" points somewhere that contains nothing else.  Prefer the submit
+# Locating the sibling scripts is not as simple as dirname "$0": a scheduler
+# may copy the script into a spool directory before running it, so under sbatch
+# "$0" resolves somewhere that holds nothing else.  Prefer the submit
 # directory, and let REACTOR_DIR override either way.
 for candidate in \
         "${REACTOR_DIR:-}" \
@@ -58,72 +44,97 @@ done
 work=${SLURM_SUBMIT_DIR:-$PWD}/smoke_test_work
 rm -rf "$work" && mkdir -p "$work" && cd "$work" || exit 1
 
+
 failed=0
+
 say() { echo; echo "########## $* ##########"; }
-check() { if [ "$1" -eq 0 ]; then echo "  ok: $2"; else echo "  FAILED: $2"; failed=1; fi }
+pass() { echo "  ok: $1"; }
+fail() { echo "  FAILED: $1"; failed=1; }
+
+# Run a command, showing its output, and report on its exit status.
+step() {
+    local desc=$1
+    shift
+    if "$@"; then pass "$desc"; else fail "$desc"; fi
+}
+
+# Assert a condition quietly.  Passing the command as arguments, rather than
+# testing and then reading $?, keeps it unambiguous which status is being read.
+expect() {
+    local desc=$1
+    shift
+    if "$@" >/dev/null 2>&1; then pass "$desc"; else fail "$desc"; fi
+}
+
+# Count trajectories matching a prefix without parsing ls output.
+count_trj() {
+    local n=0 f
+    for f in "$1"*.trj; do
+        [ -e "$f" ] && n=$((n + 1))
+    done
+    echo "$n"
+}
+
+atom_count() { head -n 1 "$1" | tr -d '[:space:]'; }
 
 say "tools"
 echo "  scripts   $here"
 for tool in obabel packmol crest xtb; do
-    printf '  %-9s %s\n' "$tool" "$(command -v $tool)"
+    printf '  %-9s %s\n' "$tool" "$(command -v "$tool")"
 done
 
 say "1. genmol.sh builds a cluster"
-bash "$here/genmol.sh" "[Li+].C1COC(=O)O1" liec --shape sphere
-check $? "genmol.sh wrote liec.xyz"
-[ "$(head -1 liec.xyz | tr -d '[:space:]')" = "11" ]
-check $? "11 atoms as expected"
+step "genmol.sh wrote liec.xyz" \
+    bash "$here/genmol.sh" "[Li+].C1COC(=O)O1" liec --shape sphere
+expect "11 atoms as expected" test "$(atom_count liec.xyz)" = "11"
 
 say "2. --dryrun generates rcontrol without running any MD"
-bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 --time 20 --dryrun
-check $? "dry run completed"
-grep -q '^\$metadyn' rcontrol && grep -q '^\$wall' rcontrol
-check $? "rcontrol has the metadyn and wall blocks"
-grep -q 'temp=1000' rcontrol
-check $? "log-Fermi wall temperature applied"
-# crest picks kpush from system size; the driver rescales it by factor/4
-grep -qE 'kpush=0?\.0*55000' rcontrol
-check $? "kpush rescaled to 0.44 * 0.5 / 4 = 0.055"
-[ ! -f xtb.trj ]
-check $? "no trajectory produced by a dry run"
+step "dry run completed" \
+    bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 --time 20 --dryrun
+expect "rcontrol has a metadyn block" grep -q '^[$]metadyn' rcontrol
+expect "rcontrol has a wall block" grep -q '^[$]wall' rcontrol
+expect "log-Fermi wall temperature applied" grep -q 'temp=1000' rcontrol
+# crest picks kpush from the system size; the driver rescales it by factor/4
+expect "kpush rescaled to 0.44 * 0.5 / 4 = 0.055" \
+    grep -qE 'kpush=0?\.0*55000' rcontrol
+expect "no trajectory produced by a dry run" test ! -f xtb.trj
 
 say "3. a two-member ensemble runs"
-bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 \
-    --time 1 --mddump 100 --nrun 2 --walltemp 1000.0 --nm test
-check $? "ensemble completed"
-[ "$(ls testk0.5_a0.6run*.trj 2>/dev/null | wc -l)" -eq 2 ]
-check $? "two trajectories written"
-sed -n 2p testk0.5_a0.6run1.trj | grep -q 'MTD params: charge=-1'
-check $? "parameters recorded in line 2 of the trajectory"
+step "ensemble completed" \
+    bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 \
+        --time 1 --mddump 100 --nrun 2 --walltemp 1000.0 --nm test
+expect "two trajectories written" test "$(count_trj testk0.5_a0.6run)" = "2"
+sed -n 2p testk0.5_a0.6run1.trj > line2.txt
+expect "parameters recorded in line 2 of the trajectory" \
+    grep -q 'MTD params: charge=-1' line2.txt
 
 say "4. a larger --nrun tops the ensemble up"
-# Log to a file rather than piping into grep -q -- grep exits on its first
+# Redirect to a file rather than piping into grep -q -- grep exits on its first
 # match, and the SIGPIPE that follows would kill the run part way through.
-bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 \
-    --time 1 --mddump 100 --nrun 3 --walltemp 1000.0 --nm test > resume.log 2>&1
-check $? "resumed run completed"
-grep -qi 'indices from 3' resume.log
-check $? "started at run 3 rather than run 1"
-[ "$(ls testk0.5_a0.6run*.trj | wc -l)" -eq 3 ]
-check $? "three trajectories now present"
+step "resumed run completed" \
+    bash -c "bash '$here/setup_reactor.sh' liec.xyz -1 0.5 0.6 5 \
+        --time 1 --mddump 100 --nrun 3 --walltemp 1000.0 --nm test > resume.log 2>&1"
+expect "started at run 3 rather than run 1" grep -qi 'indices from 3' resume.log
+expect "three trajectories now present" test "$(count_trj testk0.5_a0.6run)" = "3"
 
 say "5. a full ensemble is left alone"
 bash "$here/setup_reactor.sh" liec.xyz -1 0.5 0.6 5 --time 1 --nrun 3 --nm test \
     > full.log 2>&1
-grep -qi 'nothing to do' full.log
-check $? "declined to re-run a complete ensemble"
-[ "$(ls testk0.5_a0.6run*.trj | wc -l)" -eq 3 ]
-check $? "still three trajectories, nothing overwritten"
+expect "declined to re-run a complete ensemble" grep -qi 'nothing to do' full.log
+expect "still three trajectories, nothing overwritten" \
+    test "$(count_trj testk0.5_a0.6run)" = "3"
 
 say "6. bad input is refused"
-bash "$here/setup_reactor.sh" missing.xyz -1 0.5 0.6 5 >/dev/null 2>&1
-[ $? -ne 0 ]
-check $? "missing geometry exits non-zero"
+if bash "$here/setup_reactor.sh" missing.xyz -1 0.5 0.6 5 >/dev/null 2>&1; then
+    fail "missing geometry should exit non-zero"
+else
+    pass "missing geometry exits non-zero"
+fi
 
 say "result"
-if [ $failed -eq 0 ]; then
+if [ "$failed" -eq 0 ]; then
     echo "  all checks passed; working files are in $work"
 else
     echo "  something failed; see above and the files in $work"
 fi
-exit $failed
+exit "$failed"

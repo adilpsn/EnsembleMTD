@@ -24,16 +24,13 @@
 # that comment, not the rcontrol left behind, is the authoritative record of
 # how a trajectory was produced (crest rewrites rcontrol on every member).
 #
-# The SBATCH block below targets PALMA (Universität Münster); adjust the partitions,
-# task count and memory for another cluster.
+# This is a plain program with no scheduler directives in it, so it works the
+# same whether you run it directly or submit it.  A production ensemble is long
+# (20 trajectories x 30 ps is hours to days) and xtb is threaded, so it wants a
+# whole node and a generous wall clock.  Copy submit.example.sbatch and put your
+# site's partition, account and module loads there.
 #
-#SBATCH -J xtb_mtd
-#SBATCH -p hims,q0heuer
-#SBATCH --nodes=1
-#SBATCH --ntasks=36
-#SBATCH --cpus-per-task=1
-#SBATCH --time=168:00:00
-#SBATCH --mem=92G
+# xtb picks up its thread count from OMP_NUM_THREADS.
 
 usage() {
     echo "Usage: $0 <xyz_file> <charge> <kpush_factor> <alp_value> <density> [--time <ps>] [--mddump <val>] [--nrun <N>] [--atoms <range>] [--walltemp <K>] [--alpb <solvent>] [--timestep <fs>] [--nohbias] [--nm <name>] [--noclutter] [--dryrun]"
@@ -207,11 +204,15 @@ if [ "$dryrun" = true ]; then
 fi
 
 # ---------- Determine starting run index based on existing files ----------
+# Pattern: <run_name>k<kpush>_a<alp>runX.trj, e.g. k0.5_a0.6run3.trj or
+# lieck0.5_a0.6run3.trj.  Only the * is left unquoted, so a prefix containing
+# spaces still matches; the -e test stands in for nullglob.
 max_existing=0
-# pattern: <run_name>k<kpush>_a<alp>runX.trj  e.g. k0.5_a0.6run3.trj or lieck0.5_a0.6run3.trj
-shopt -s nullglob
-existing=( ${run_name}k${kpush_factor}_a${alp_value}run*.trj )
-shopt -u nullglob
+run_prefix="${run_name}k${kpush_factor}_a${alp_value}run"
+existing=()
+for candidate in "$run_prefix"*.trj; do
+    [ -e "$candidate" ] && existing+=("$candidate")
+done
 
 if (( ${#existing[@]} > 0 )); then
     for f in "${existing[@]}"; do

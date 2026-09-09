@@ -165,6 +165,18 @@ The end-to-end tests replay captured ReacNetGenerator output through a stub
 binary. That is deliberate: with the real thing they could not assert on
 species labels at all.
 
+`pytest` covers the analysis stage only. The reactor scripts have their own
+smoke test, which needs `crest` and `xtb` and so wants a compute node:
+
+```bash
+sbatch reactor/smoke_test.sh        # or: bash reactor/smoke_test.sh
+```
+
+It builds a Li + EC cluster, checks the generated `rcontrol` (including that
+`kpush` was rescaled as advertised), runs a two-member ensemble, and verifies
+that a larger `--nrun` tops the ensemble up rather than overwriting it. About a
+minute on eight cores.
+
 ## Citation
 
 The manuscript is in preparation. Until it appears, please cite this

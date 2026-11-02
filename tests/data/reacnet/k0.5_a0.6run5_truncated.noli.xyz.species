@@ -1,0 +1,5 @@
+Timestep 0: [H][C]1([H])[O][C]([O])[O][C]1([H])[H] 1
+Timestep 1: [H][C]1([H])[O][C]([O])[O][C]1([H])[H] 1 [H][C]([H])=[C]([H])[O][C]([O])=[O] 1
+Timestep 2: [H][C]([H])=[C]([H])[O][C]([O])=[O] 1
+Timestep 3: [H][C]([H])=[C]([H])[O][C]([O])=[O] 1 [O]=[C]=[O] 1
+Timestep 4: [H][C]([H])=[C]([H])[O][C]([O])=[O] 1 [O]=[C]=[O] 1
